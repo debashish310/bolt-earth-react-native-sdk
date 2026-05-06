@@ -1,0 +1,21 @@
+{
+
+  "name": "@boltearth/react-native-sdk",
+
+  "version": "1.0.0",
+
+  "description": "BoltEarth React Native SDK",
+
+  "main": "BoltEarthSDK.js",
+
+  "author": "BoltEarth",
+
+  "license": "MIT",
+
+  "peerDependencies": {
+
+    "react-native": ">=0.71.0"
+
+  }
+
+}
