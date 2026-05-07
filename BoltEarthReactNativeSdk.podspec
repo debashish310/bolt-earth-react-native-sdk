@@ -29,8 +29,7 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
 
-  s.dependency 'BoltEarthUiSdkCore',
-               :podspec => 'https://raw.githubusercontent.com/debashish310/BoltEarthUiSdkCore/main/BoltEarthUiSdkCore.podspec'
+  s.dependency "BoltEarthUiSdkCore"
 
   s.swift_version = "5.0"
 
