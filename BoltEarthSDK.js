@@ -113,12 +113,26 @@ export async function getVerboseLoggingEnabled() {
   return BoltEarthBridge.verboseLoggingEnabled();
 }
 
+/**
+ * Ends server session (best-effort) and clears native credentials. Values from `initializeWithOptions` remain for re-login.
+ *
+ * @returns {Promise<boolean>} `true` if the native logout HTTP response was treated as successful; `false` otherwise. Local session is cleared either way.
+ */
+export async function logout() {
+  if (Platform.OS !== 'ios') {
+    await notIOS();
+    return false;
+  }
+  return BoltEarthBridge.logout();
+}
+
 const BoltEarthSDK = {
   initializeWithOptions,
   initialize: initializeLegacy,
   initializeLegacy,
   presentChargerFlow,
   presentBookingHistoryFlow,
+  logout,
   setLanguage,
   getCurrentLanguageCode,
   getSupportedLanguageCodes,

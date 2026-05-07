@@ -219,6 +219,16 @@ final class BoltEarthBridge: NSObject {
         }
     }
 
+    // MARK: Session
+
+    /// Resolves with `true` when the native logout HTTP call succeeds (see `BoltEarthSDK.logout`). Local credentials are always cleared on the native side.
+    @objc(logout:reject:)
+    func logoutBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        BoltEarthSDK.logout { success in
+            resolve(success)
+        }
+    }
+
     // MARK: - Top VC
 
     private static func windowsFromConnectedScenes() -> [UIWindow] {
