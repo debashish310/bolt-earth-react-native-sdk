@@ -8,7 +8,7 @@
 
 @interface RCT_EXTERN_MODULE(BoltEarthBridge, NSObject)
 
-// Promise API (preferred) — options: clientID, sdkToken, appPackageId, environment?, language?, sdk* font names?, sdkThemeColorHex?
+// Promise API (preferred) — options: clientID, sdkToken, environment?, language?, sdk* font names?, sdkThemeColorHex?
 RCT_EXTERN_METHOD(initializeWithOptions:(NSDictionary *)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
@@ -16,7 +16,6 @@ RCT_EXTERN_METHOD(initializeWithOptions:(NSDictionary *)options
 // Fire-and-forget legacy (errors only in native console)
 RCT_EXTERN_METHOD(initializeLegacy:(NSString *)clientID
                   sdkToken:(NSString *)sdkToken
-                  appPackageId:(NSString *)appPackageId
                   environment:(NSString *)environment
                   language:(nullable NSString *)language)
 

@@ -21,7 +21,7 @@ Pod::Spec.new do |s|
   s.platform     = :ios, "15.1"
 
   s.source       = {
-    :git => "https://github.com/YOUR_USERNAME/bolt-earth-react-native-sdk.git",
+    :git => "https://github.com/debashish310/bolt-earth-react-native-sdk",
     :tag => s.version.to_s
   }
 

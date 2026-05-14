@@ -14,13 +14,21 @@ import BoltEarthUiSdkCore
 private enum BoltBridgeConfigKey {
     static let clientID = "clientID"
     static let sdkToken = "sdkToken"
-    static let appPackageId = "appPackageId"
     static let environment = "environment"
     static let language = "language"
     static let sdkRegularFontName = "sdkRegularFontName"
     static let sdkBoldFontName = "sdkBoldFontName"
     static let sdkSemiBoldFontName = "sdkSemiBoldFontName"
     static let sdkThemeColorHex = "sdkThemeColorHex"
+    static let verboseLoggingEnabled = "verboseLoggingEnabled"
+}
+
+private func boltBridgeBool(forKey key: String, in dict: NSDictionary) -> Bool? {
+    let raw = dict[key]
+    guard raw != nil, !(raw is NSNull) else { return nil }
+    if let b = raw as? Bool { return b }
+    if let n = raw as? NSNumber { return n.boolValue }
+    return nil
 }
 
 private func boltBridgeString(forKey key: String, in dict: NSDictionary) -> String? {
@@ -46,16 +54,15 @@ final class BoltEarthBridge: NSObject {
     )
     func initializeWithOptions(
         _ options: NSDictionary,
-        resolve: @escaping RCTPromiseResolveBlock,
-        reject: @escaping RCTPromiseRejectBlock
+        resolve resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
     ) {
         DispatchQueue.main.async {
             guard let clientID = boltBridgeString(forKey: BoltBridgeConfigKey.clientID, in: options),
-                  let sdkToken = boltBridgeString(forKey: BoltBridgeConfigKey.sdkToken, in: options),
-                  let appPackageId = boltBridgeString(forKey: BoltBridgeConfigKey.appPackageId, in: options) else {
+                  let sdkToken = boltBridgeString(forKey: BoltBridgeConfigKey.sdkToken, in: options) else {
                 reject(
                     "BOLT_MISSING_FIELDS",
-                    "`clientID`, `sdkToken`, and `appPackageId` are required in the options object.",
+                    "`clientID` and `sdkToken` are required in the options object.",
                     nil
                 )
                 return
@@ -71,17 +78,18 @@ final class BoltEarthBridge: NSObject {
             let bold = boltBridgeString(forKey: BoltBridgeConfigKey.sdkBoldFontName, in: options)
             let semi = boltBridgeString(forKey: BoltBridgeConfigKey.sdkSemiBoldFontName, in: options)
             let hex = boltBridgeString(forKey: BoltBridgeConfigKey.sdkThemeColorHex, in: options)
+            let verboseLogging = boltBridgeBool(forKey: BoltBridgeConfigKey.verboseLoggingEnabled, in: options) ?? false
 
             let config = BoltEarthSDK.Configuration(
                 clientID: clientID,
                 sdkToken: sdkToken,
-                appPackageId: appPackageId,
                 environment: env,
                 language: language,
                 sdkRegularFontName: reg,
                 sdkBoldFontName: bold,
                 sdkSemiBoldFontName: semi,
-                sdkThemeColorHex: hex
+                sdkThemeColorHex: hex,
+                verboseLoggingEnabled: verboseLogging
             )
 
             do {
@@ -98,12 +106,11 @@ final class BoltEarthBridge: NSObject {
     // MARK: Initialize (positional, legacy)
 
     @objc(
-        initializeLegacy:sdkToken:appPackageId:environment:language:
+        initializeLegacy:sdkToken:environment:language:
     )
     func initializeLegacyBridge(
         _ clientID: String,
         sdkToken: String,
-        appPackageId: String,
         environment: String,
         language: String?
     ) {
@@ -122,7 +129,6 @@ final class BoltEarthBridge: NSObject {
                     config: .init(
                         clientID: clientID,
                         sdkToken: sdkToken,
-                        appPackageId: appPackageId,
                         environment: env,
                         language: lang
                     )
@@ -133,13 +139,11 @@ final class BoltEarthBridge: NSObject {
         }
     }
 
-    // MARK: Language
-
     @objc(setLanguageCode:resolve:reject:)
     func setLanguageBridge(
         _ code: NSString?,
-        resolve: @escaping RCTPromiseResolveBlock,
-        reject: @escaping RCTPromiseRejectBlock
+        resolve resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
     ) {
         DispatchQueue.main.async {
             if let code {
@@ -184,7 +188,7 @@ final class BoltEarthBridge: NSObject {
     // MARK: Flows
 
     @objc(presentChargerFlow:reject:)
-    func presentChargerFlowBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    func presentChargerFlowBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject reject: @escaping RCTPromiseRejectBlock) {
         DispatchQueue.main.async {
             guard let top = Self.resolveTopMostViewController() else {
                 reject("BOLT_NO_VC", "Could not resolve a presenting view controller.", nil)
@@ -200,8 +204,8 @@ final class BoltEarthBridge: NSObject {
     )
     func presentBookingHistoryBridge(
         _ options: NSDictionary?,
-        resolve: @escaping RCTPromiseResolveBlock,
-        reject: @escaping RCTPromiseRejectBlock
+        resolve resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
     ) {
         DispatchQueue.main.async {
             guard let top = Self.resolveTopMostViewController() else {
@@ -209,10 +213,7 @@ final class BoltEarthBridge: NSObject {
                 return
             }
 
-            let bid: String? = {
-                guard let opts = options else { return nil }
-                return boltBridgeString(forKey: "bookingId", in: opts)
-            }()
+            let _ = options // NSDictionary retained for RN API compatibility (booking deep-link removed)
 
             BoltEarthSDK.presentBookingHistoryFlow(from: top, animated: true)
             resolve(NSNull())
@@ -231,19 +232,23 @@ final class BoltEarthBridge: NSObject {
 
     // MARK: - Top VC
 
-    private static func windowsFromConnectedScenes() -> [UIWindow] {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-    }
-
     private static func resolveTopMostViewController() -> UIViewController? {
-        let windows = windowsFromConnectedScenes()
+        guard let scenes = UIApplication.shared.connectedScenes as? Set<UIWindowScene> else {
+            return fallbackRoot().map { walkLeafPresented(from: $0) }
+        }
+
+        let windows = scenes.flatMap { $0.windows }
         guard let root = windows.first(where: { $0.isKeyWindow })?.rootViewController
-                ?? windows.first?.rootViewController else {
+                ?? windows.first?.rootViewController
+                ?? fallbackRoot() else {
             return nil
         }
         return walkLeafPresented(from: root)
+    }
+
+    private static func fallbackRoot() -> UIViewController? {
+        UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            ?? UIApplication.shared.windows.first?.rootViewController
     }
 
     private static func walkLeafPresented(from vc: UIViewController) -> UIViewController {
