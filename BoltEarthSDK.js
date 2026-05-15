@@ -85,8 +85,7 @@ export async function initializeWithOptions(options) {
         '[BoltEarthSDK] initializeWithOptions on Android requires clientID and sdkToken.',
       );
     }
-    BoltEarthUiSdk.initialize(toAndroidInitMap(o));
-    return;
+    return BoltEarthUiSdk.initialize(toAndroidInitMap(o));
   }
   return warnNativeUnavailable();
 }
@@ -126,8 +125,7 @@ export function initializeLegacy(clientID, sdkToken, ...rest) {
     if (language != null && language !== '') {
       cfg.localeLanguageTag = language;
     }
-    BoltEarthUiSdk.initialize(cfg);
-    return;
+    return BoltEarthUiSdk.initialize(cfg);
   }
 }
 
