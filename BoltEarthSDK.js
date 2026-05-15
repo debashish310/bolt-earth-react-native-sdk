@@ -1,7 +1,7 @@
 /**
  * BoltEarthSdk — JavaScript façade over native modules:
  * - iOS: `BoltEarthBridge` (`BoltEarthUiSdkCore`) — package id resolved inside native SDK from the host bundle + environment.
- * - Android: `BoltEarthUiSdk` (`BoltEarthUiSdkModule` — userId, sdkToken, sdkPackage, flows, …).
+ * - Android: `BoltEarthUiSdk` (`BoltEarthUiSdkModule` — userId, sdkToken, environment, flows, …).
  *
  * Copy into your RN app (e.g. `src/native/BoltEarthSDK.js`) or publish from your SDK package.
  *
@@ -36,53 +36,39 @@ const warnNativeUnavailable = async () => {
  * @typedef {object} BoltInitializeOptions
  * @property {string} clientID
  * @property {string} sdkToken
- * @property {'staging'|'production'} [environment='staging'] — **iOS only** (forwarded to native `BoltEarthSDK.Configuration`).
+ * @property {'staging'|'production'} [environment='staging'] — iOS: forwarded to native `BoltEarthSDK.Configuration`; Android: "production" → SdkEnvironment.Production, anything else → Development.
  * @property {string|null} [language] — ISO 639-1 alpha-2; omit or null for device default (`localeLanguageTag` on Android).
  * @property {string} [sdkRegularFontName] — **iOS only**
  * @property {string} [sdkBoldFontName] — **iOS only**
  * @property {string} [sdkSemiBoldFontName] — **iOS only**
  * @property {string} [sdkThemeColorHex] — theme accent (`primaryColor` on Android when set).
  * @property {boolean} [verboseLoggingEnabled] — **iOS only**
- * @property {string} [appPackageId] — **Android only**, required by `BoltEarthUiSdk.initialize` (application package name).
  * @property {{ light?: number, regular?: number, medium?: number, semiBold?: number, bold?: number }} [fontOverrides]
  *   **Android only** — forwarded to `BoltEarthUiSdk.initialize` when present.
  */
 
-function initConfigFromBoltOptions(options) {
-  const base = {
-    userId: options.clientID,
-    sdkToken: options.sdkToken,
-    sdkPackage: options.appPackageId,
-  };
-  if (options.sdkThemeColorHex != null && options.sdkThemeColorHex !== '') {
-    base.primaryColor = options.sdkThemeColorHex;
-  }
-  if (options.language != null && options.language !== '') {
-    base.localeLanguageTag = options.language;
-  }
-  if (options.fontOverrides != null) {
-    base.fontOverrides = options.fontOverrides;
-  }
-  return base;
-}
-
-/** Builds the ReadableMap keys expected by `BoltEarthUiSdkModule.initialize`. */
-function toNativeInitMap(config) {
+/**
+ * Builds the ReadableMap passed to `BoltEarthUiSdkModule.initialize`.
+ * Keys: userId (required), sdkToken (required), environment, primaryColor,
+ * localeLanguageTag, fontOverrides (all optional).
+ */
+function toAndroidInitMap(options) {
+  const o = options ?? {};
   const map = {
-    userId: config.userId,
-    sdkToken: config.sdkToken,
+    userId: o.clientID,
+    sdkToken: o.sdkToken,
   };
-  if (config.sdkPackage != null) {
-    map.sdkPackage = config.sdkPackage;
+  if (o.environment != null && o.environment !== '') {
+    map.environment = o.environment;
   }
-  if (config.primaryColor != null) {
-    map.primaryColor = config.primaryColor;
+  if (o.sdkThemeColorHex != null && o.sdkThemeColorHex !== '') {
+    map.primaryColor = o.sdkThemeColorHex;
   }
-  if (config.localeLanguageTag != null) {
-    map.localeLanguageTag = config.localeLanguageTag;
+  if (o.language != null && o.language !== '') {
+    map.localeLanguageTag = o.language;
   }
-  if (config.fontOverrides != null) {
-    map.fontOverrides = config.fontOverrides;
+  if (o.fontOverrides != null) {
+    map.fontOverrides = o.fontOverrides;
   }
   return map;
 }
@@ -94,12 +80,12 @@ export async function initializeWithOptions(options) {
     return BoltEarthBridge.initializeWithOptions(o);
   }
   if (androidReady) {
-    if (!o.clientID || !o.sdkToken || !o.appPackageId) {
+    if (!o.clientID || !o.sdkToken) {
       throw new Error(
-        '[BoltEarthSDK] initializeWithOptions on Android requires clientID, sdkToken, and appPackageId.',
+        '[BoltEarthSDK] initializeWithOptions on Android requires clientID and sdkToken.',
       );
     }
-    BoltEarthUiSdk.initialize(toNativeInitMap(initConfigFromBoltOptions(o)));
+    BoltEarthUiSdk.initialize(toAndroidInitMap(o));
     return;
   }
   return warnNativeUnavailable();
@@ -111,9 +97,10 @@ export async function initializeWithOptions(options) {
  * **iOS:** `initializeLegacy(clientID, sdkToken, environment?, language?)`
  * — matches `BoltEarthBridge.initializeLegacy` (extra args after `language` are ignored).
  *
- * **Android:** `initializeLegacy(clientID, sdkToken, appPackageId, environment?, language?)`
- * — `environment` is accepted for API symmetry; forwarded keys depend on what
- * `BoltEarthUiSdk.initialize` supports (typically `userId`, `sdkToken`, `sdkPackage`, `localeLanguageTag`).
+ * **Android:** `initializeLegacy(clientID, sdkToken, environment?, language?)`
+ * — `environment` maps "production" → SdkEnvironment.Production, anything else → Development.
+ *   A former `appPackageId` first positional arg (now unused by the native module) is still
+ *   accepted at position 0 for backward compatibility but is no longer forwarded.
  *
  * @param {string} clientID
  * @param {string} sdkToken
@@ -126,24 +113,20 @@ export function initializeLegacy(clientID, sdkToken, ...rest) {
     return;
   }
   if (androidReady) {
-    const [appPackageId, /* environment */, language = null] = rest;
-    if (!appPackageId) {
-      if (__DEV__) {
-        console.warn(
-          '[BoltEarthSDK] Android initializeLegacy requires appPackageId as the third argument.',
-        );
-      }
-      return;
-    }
+    // rest[0] was formerly appPackageId (no longer used by the native module).
+    // rest[1] is environment; rest[2] is language.
+    const [/* appPackageId (ignored) */, environment, language = null] = rest;
     const cfg = {
       userId: clientID,
       sdkToken,
-      sdkPackage: appPackageId,
     };
+    if (environment != null && environment !== '') {
+      cfg.environment = environment;
+    }
     if (language != null && language !== '') {
       cfg.localeLanguageTag = language;
     }
-    BoltEarthUiSdk.initialize(toNativeInitMap(cfg));
+    BoltEarthUiSdk.initialize(cfg);
     return;
   }
 }
