@@ -24,47 +24,60 @@ class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
   override fun getName(): String = NAME
 
   @ReactMethod
-  fun initialize(config: ReadableMap) {
-    val ctx = reactApplicationContext
-    val userId =
-      config.getString("userId") ?: throw IllegalArgumentException("initialize: userId is required")
-    val sdkToken =
-      config.getString("sdkToken")
-        ?: throw IllegalArgumentException("initialize: sdkToken is required")
+  fun initialize(config: ReadableMap, promise: Promise) {
+    try {
+      val ctx = reactApplicationContext
+      val userId =
+        config.getString("userId")
+          ?: throw IllegalArgumentException("initialize: userId is required")
+      val sdkToken =
+        config.getString("sdkToken")
+          ?: throw IllegalArgumentException("initialize: sdkToken is required")
 
-    val environment = when (
-      if (config.hasKey("environment")) config.getString("environment")?.lowercase() else null
-    ) {
-      "production" -> SdkEnvironment.Production
-      else -> SdkEnvironment.Development
-    }
-    val primaryColor =
-      if (config.hasKey("primaryColor")) config.getString("primaryColor").orEmpty() else ""
-    val localeLanguageTag =
-      if (config.hasKey("localeLanguageTag")) config.getString("localeLanguageTag").orEmpty() else ""
-
-    val fonts =
-      if (config.hasKey("fontOverrides")) {
-        parseFontOverrides(config.getMap("fontOverrides")!!)
-      } else {
-        SdkFontOverrides()
+      val environment = when (
+        if (config.hasKey("environment")) config.getString("environment")?.lowercase() else null
+      ) {
+        "production" -> SdkEnvironment.Production
+        else -> SdkEnvironment.Development
       }
+      val primaryColor =
+        if (config.hasKey("primaryColor")) config.getString("primaryColor").orEmpty() else ""
+      val localeLanguageTag =
+        if (config.hasKey("localeLanguageTag")) config.getString("localeLanguageTag").orEmpty()
+        else ""
 
-    BoltEarthUiSdk.initialize(
-      ctx,
-      userId,
-      sdkToken,
-      environment,
-      primaryColor,
-      fonts,
-      localeLanguageTag,
-    )
+      val fonts =
+        if (config.hasKey("fontOverrides")) {
+          parseFontOverrides(config.getMap("fontOverrides")!!)
+        } else {
+          SdkFontOverrides()
+        }
+
+      BoltEarthUiSdk.initialize(
+        ctx,
+        userId,
+        sdkToken,
+        environment,
+        primaryColor,
+        fonts,
+        localeLanguageTag,
+      )
+      promise.resolve(null)
+    } catch (e: IllegalArgumentException) {
+      promise.reject("E_INITIALIZE_INVALID_ARGS", e.message, e)
+    } catch (e: Exception) {
+      promise.reject("E_INITIALIZE", e.message, e)
+    }
   }
 
   @ReactMethod
   fun logout(promise: Promise) {
-    BoltEarthUiSdk.logout(reactApplicationContext) { result ->
-      promise.resolve(logoutResultToMap(result))
+    try {
+      BoltEarthUiSdk.logout(reactApplicationContext) { result ->
+        promise.resolve(logoutResultToMap(result))
+      }
+    } catch (e: Exception) {
+      promise.reject("E_LOGOUT", e.message, e)
     }
   }
 
