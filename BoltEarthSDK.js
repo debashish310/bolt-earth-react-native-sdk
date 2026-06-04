@@ -160,38 +160,67 @@ export async function presentBookingHistoryFlow(options) {
 }
 
 /** @param {string | null | undefined} code */
+
 export async function setLanguage(code) {
+
   if (iosReady) {
+
     return BoltEarthBridge.setLanguageCode(code ?? null);
+
   }
+
   if (androidReady) {
-    return;
+
+    return BoltEarthUiSdk.setLocale(code ?? '');
+
   }
+
   return warnNativeUnavailable();
+
 }
 
 /** @returns {Promise<string>} */
+
 export async function getCurrentLanguageCode() {
+
   if (iosReady) {
+
     return BoltEarthBridge.currentLanguageCode();
+
   }
+
   if (androidReady) {
-    return 'en';
+
+    return BoltEarthUiSdk.getCurrentLanguageCode();
+
   }
+
   await warnNativeUnavailable();
+
   return 'en';
+
 }
 
 /** @returns {Promise<string[]>} */
+
 export async function getSupportedLanguageCodes() {
+
   if (iosReady) {
+
     return BoltEarthBridge.supportedLanguageCodes();
+
   }
+
   if (androidReady) {
-    return [];
+
+    return BoltEarthUiSdk.getSupportedLanguageCodes();
+
   }
+
   await warnNativeUnavailable();
+
   return [];
+
 }
 
 export function setVerboseLoggingEnabled(enabled) {
