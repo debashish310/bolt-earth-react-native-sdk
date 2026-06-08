@@ -95,6 +95,36 @@ class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun setLocale(localeLanguageTag: String, promise: Promise) {
+    try {
+      BoltEarthUiSdk.setLocale(reactApplicationContext, localeLanguageTag)
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("E_SET_LOCALE", e.message, e)
+    }
+  }
+
+  @ReactMethod
+  fun getCurrentLanguageCode(promise: Promise) {
+    try {
+      promise.resolve(BoltEarthUiSdk.getCurrentLocaleLanguageTag())
+    } catch (e: Exception) {
+      promise.reject("E_GET_LANGUAGE_CODE", e.message, e)
+    }
+  }
+
+  @ReactMethod
+  fun getSupportedLanguageCodes(promise: Promise) {
+    try {
+      val array = Arguments.createArray()
+      BoltEarthUiSdk.getSupportedLocaleLanguageTags().forEach { array.pushString(it) }
+      promise.resolve(array)
+    } catch (e: Exception) {
+      promise.reject("E_GET_SUPPORTED_LANGUAGES", e.message, e)
+    }
+  }
+
+  @ReactMethod
   fun openChargerBookingFlow(promise: Promise) {
     try {
       val launchContext =
