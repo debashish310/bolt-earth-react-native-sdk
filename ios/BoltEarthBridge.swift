@@ -23,6 +23,13 @@ private enum BoltBridgeConfigKey {
     static let verboseLoggingEnabled = "verboseLoggingEnabled"
 }
 
+/// Keys for dictionary passed from JS (`BoltEarthSDK.presentChargerFlow(options)`).
+private enum BoltBridgeFlowKey {
+    static let vehicleMapperKey = "vehicleMapperKey"
+    static let vehicleType = "vehicleType"
+    static let initialSOCPercent = "initialSOCPercent"
+}
+
 private func boltBridgeBool(forKey key: String, in dict: NSDictionary) -> Bool? {
     let raw = dict[key]
     guard raw != nil, !(raw is NSNull) else { return nil }
@@ -41,6 +48,24 @@ private func boltBridgeString(forKey key: String, in dict: NSDictionary) -> Stri
     }()
     guard let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
     return t
+}
+
+private func boltBridgeFloat(forKey key: String, in dict: NSDictionary) -> Float? {
+    let raw = dict[key]
+    guard raw != nil, !(raw is NSNull) else { return nil }
+    if let n = raw as? NSNumber { return n.floatValue }
+    return nil
+}
+
+/// Maps JS vehicle type string to `SDKVehicleType`.
+/// Valid values: `"TWO_WHEELER"`, `"THREE_WHEELER"`, `"FOUR_WHEELER"`.
+private func boltBridgeVehicleType(_ raw: String?) -> BoltEarthSDK.SDKVehicleType? {
+    switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+    case "TWO_WHEELER":   return .twoWheeler
+    case "THREE_WHEELER": return .threeWheeler
+    case "FOUR_WHEELER":  return .fourWheeler
+    default:              return nil
+    }
 }
 
 @objc(BoltEarthBridge)
@@ -187,15 +212,52 @@ final class BoltEarthBridge: NSObject {
 
     // MARK: Flows
 
-    @objc(presentChargerFlow:reject:)
-    func presentChargerFlowBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject reject: @escaping RCTPromiseRejectBlock) {
+    /// Options keys:
+    ///   - `vehicleMapperKey` (String, required) — `externalKey` of the selected OEM vehicle.
+    ///   - `vehicleType` (String, required) — `"TWO_WHEELER"`, `"THREE_WHEELER"`, or `"FOUR_WHEELER"`.
+    ///   - `initialSOCPercent` (Number, optional, default 0) — current battery SOC, 0–100.
+    @objc(presentChargerFlow:resolve:reject:)
+    func presentChargerFlowBridge(
+        _ options: NSDictionary,
+        resolve resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
+    ) {
         DispatchQueue.main.async {
+            guard let mapperKey = boltBridgeString(forKey: BoltBridgeFlowKey.vehicleMapperKey, in: options) else {
+                reject("BOLT_MISSING_FIELDS", "`vehicleMapperKey` is required in the options object.", nil)
+                return
+            }
+
+            let vehicleTypeRaw = boltBridgeString(forKey: BoltBridgeFlowKey.vehicleType, in: options)
+            guard let vehicleType = boltBridgeVehicleType(vehicleTypeRaw) else {
+                reject(
+                    "BOLT_INVALID_VEHICLE_TYPE",
+                    "`vehicleType` must be one of \"TWO_WHEELER\", \"THREE_WHEELER\", or \"FOUR_WHEELER\". Got: \(vehicleTypeRaw ?? "nil").",
+                    nil
+                )
+                return
+            }
+
+            let soc = boltBridgeFloat(forKey: BoltBridgeFlowKey.initialSOCPercent, in: options) ?? 0
+
             guard let top = Self.resolveTopMostViewController() else {
                 reject("BOLT_NO_VC", "Could not resolve a presenting view controller.", nil)
                 return
             }
-            BoltEarthSDK.presentChargerFlow(from: top)
-            resolve(NSNull())
+
+            do {
+                try BoltEarthSDK.presentChargerFlow(
+                    from: top,
+                    vehicleMapperKey: mapperKey,
+                    vehicleType: vehicleType,
+                    initialSOCPercent: soc
+                )
+                resolve(NSNull())
+            } catch let e as BoltEarthSDK.PresentFlowError {
+                reject("BOLT_PRESENT_VALIDATION", e.localizedDescription, nil)
+            } catch {
+                reject("BOLT_PRESENT", error.localizedDescription, nil)
+            }
         }
     }
 
@@ -217,6 +279,64 @@ final class BoltEarthBridge: NSObject {
 
             BoltEarthSDK.presentBookingHistoryFlow(from: top, animated: true)
             resolve(NSNull())
+        }
+    }
+
+    // MARK: OEM Vehicles
+
+    /// Fetches the OEM vehicle list. Returns an array of vehicle dictionaries.
+    /// Each entry contains: `externalKey`, `model`, `company`, `companyModel`, `type`,
+    /// `batteryCapacity`, `obc`, `dc`, and optionally `imageUrl`.
+    @objc(fetchOEMVehicles:reject:)
+    func fetchOEMVehiclesBridge(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
+    ) {
+        BoltEarthSDK.fetchOEMVehicles { vehicles in
+            resolve(vehicles)
+        }
+    }
+
+    // MARK: Charger
+
+    /// Fetches charger details by Bolt charger ID.
+    /// Rejects with `BOLT_INVALID_CHARGER_ID` synchronously if the ID format is unrecognised.
+    /// Network/server errors are resolved as the raw response dict (check `status` and `message`).
+    @objc(fetchCharger:resolve:reject:)
+    func fetchChargerBridge(
+        _ chargerId: NSString,
+        resolve resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
+    ) {
+        do {
+            try BoltEarthSDK.fetchCharger(byId: chargerId as String) { result in
+                resolve(result)
+            }
+        } catch let e as BoltEarthSDK.ChargerFetchError {
+            reject("BOLT_INVALID_CHARGER_ID", e.localizedDescription, nil)
+        } catch {
+            reject("BOLT_CHARGER_FETCH", error.localizedDescription, nil)
+        }
+    }
+
+    // MARK: Wallet
+
+    @objc(presentWalletFlow:reject:)
+    func presentWalletFlowBridge(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject reject: @escaping RCTPromiseRejectBlock
+    ) {
+        DispatchQueue.main.async {
+            guard let top = Self.resolveTopMostViewController() else {
+                reject("BOLT_NO_VC", "Could not resolve a presenting view controller.", nil)
+                return
+            }
+            do {
+                try BoltEarthSDK.presentWalletFlow(from: top)
+                resolve(NSNull())
+            } catch {
+                reject("BOLT_WALLET", error.localizedDescription, nil)
+            }
         }
     }
 

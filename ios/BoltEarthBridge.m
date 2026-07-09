@@ -34,11 +34,23 @@ RCT_EXTERN_METHOD(setVerboseLoggingEnabled:(BOOL)enabled)
 RCT_EXTERN_METHOD(verboseLoggingEnabled:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(presentChargerFlow:(RCTPromiseResolveBlock)resolve
+// options: vehicleMapperKey (String), vehicleType (String), initialSOCPercent (Number, optional)
+RCT_EXTERN_METHOD(presentChargerFlow:(NSDictionary *)options
+                  resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(presentBookingHistoryFlow:(nullable NSDictionary *)options
                   resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(fetchOEMVehicles:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(fetchCharger:(NSString *)chargerId
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(presentWalletFlow:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(logout:(RCTPromiseResolveBlock)resolve
