@@ -14,8 +14,11 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
+import org.json.JSONArray
+import org.json.JSONObject
 
 @ReactModule(name = BoltEarthUiSdkModule.NAME)
 class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
@@ -137,6 +140,63 @@ class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Opens the wallet flow (balance, transaction history, add money).
+   * Mirrors iOS `BoltEarthBridge.presentWalletFlow`.
+   */
+  @ReactMethod
+  fun presentWalletFlow(promise: Promise) {
+    try {
+      val launchContext =
+        reactApplicationContext.currentActivity
+          ?: newTaskApplicationContext(reactApplicationContext)
+      BoltEarthUiSdk.presentWalletFlow(launchContext)
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("E_PRESENT_WALLET", e.message, e)
+    }
+  }
+
+  /**
+   * Fetches the OEM vehicle catalog. Resolves with an array of vehicle objects (each with
+   * `externalKey`, `model`, `company`, `type`, `batteryCapacity`, …) to mirror the iOS
+   * `fetchOEMVehicles` array contract. The native SDK returns the catalog wrapped in a JSON object;
+   * the enclosed array (`response`, or `data` on newer builds) is unwrapped here.
+   */
+  @ReactMethod
+  fun fetchOEMVehicles(promise: Promise) {
+    try {
+      BoltEarthUiSdk.fetchOEMVehicles(reactApplicationContext) { response ->
+        val array = response.optJSONArray("response") ?: response.optJSONArray("data")
+        promise.resolve(
+          if (array != null) jsonArrayToWritableArray(array) else Arguments.createArray()
+        )
+      }
+    } catch (e: Exception) {
+      promise.reject("E_FETCH_OEM_VEHICLES", e.message, e)
+    }
+  }
+
+  /**
+   * Fetches charger details by Bolt charger ID. Resolves with the full API response object
+   * (`status`, `message`, and `data` on success). Runs the SDK login gate internally.
+   * Mirrors iOS `BoltEarthBridge.fetchCharger`.
+   */
+  @ReactMethod
+  fun fetchCharger(chargerId: String, promise: Promise) {
+    try {
+      BoltEarthUiSdk.fetchCharger(reactApplicationContext, chargerId) { response ->
+        promise.resolve(jsonObjectToWritableMap(response))
+      }
+    } catch (e: IllegalArgumentException) {
+      promise.reject("BOLT_INVALID_CHARGER_ID", e.message, e)
+    } catch (e: IllegalStateException) {
+      promise.reject("E_NOT_INITIALIZED", e.message, e)
+    } catch (e: Exception) {
+      promise.reject("E_FETCH_CHARGER", e.message, e)
+    }
+  }
+
   private fun newTaskApplicationContext(appContext: Context): Context {
     return object : ContextWrapper(appContext) {
       override fun startActivity(intent: Intent) {
@@ -164,6 +224,44 @@ class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
       optInt("semiBold"),
       optInt("bold"),
     )
+  }
+
+  /** Recursively converts an [org.json.JSONObject] to a React [WritableMap]. */
+  private fun jsonObjectToWritableMap(obj: JSONObject): WritableMap {
+    val map = Arguments.createMap()
+    val keys = obj.keys()
+    while (keys.hasNext()) {
+      val key = keys.next()
+      when (val value = obj.get(key)) {
+        is JSONObject -> map.putMap(key, jsonObjectToWritableMap(value))
+        is JSONArray -> map.putArray(key, jsonArrayToWritableArray(value))
+        is Boolean -> map.putBoolean(key, value)
+        is Int -> map.putInt(key, value)
+        is Long -> map.putDouble(key, value.toDouble())
+        is Double -> map.putDouble(key, value)
+        JSONObject.NULL -> map.putNull(key)
+        else -> map.putString(key, value.toString())
+      }
+    }
+    return map
+  }
+
+  /** Recursively converts an [org.json.JSONArray] to a React [WritableArray]. */
+  private fun jsonArrayToWritableArray(arr: JSONArray): WritableArray {
+    val out = Arguments.createArray()
+    for (i in 0 until arr.length()) {
+      when (val value = arr.get(i)) {
+        is JSONObject -> out.pushMap(jsonObjectToWritableMap(value))
+        is JSONArray -> out.pushArray(jsonArrayToWritableArray(value))
+        is Boolean -> out.pushBoolean(value)
+        is Int -> out.pushInt(value)
+        is Long -> out.pushDouble(value.toDouble())
+        is Double -> out.pushDouble(value)
+        JSONObject.NULL -> out.pushNull()
+        else -> out.pushString(value.toString())
+      }
+    }
+    return out
   }
 
   private fun logoutResultToMap(result: BoltLogoutResult): WritableMap {
