@@ -262,6 +262,18 @@ export async function presentWalletFlow() {
   return warnNativeUnavailable();
 }
 
+/**
+ * Returns Bolt Earth customer support contact details.
+ *
+ * @returns {Promise<{ whatsapp: string, call: string, email: string }>}
+ */
+export async function fetchContactSupportInfo() {
+  if (iosReady) {
+    return BoltEarthBridge.fetchContactSupportInfo();
+  }
+  return warnNativeUnavailable();
+}
+
 /** @param {string | null | undefined} code */
 export async function setLanguage(code) {
   if (iosReady) {
@@ -347,6 +359,7 @@ const BoltEarthSDK = {
   presentWalletFlow,
   fetchOEMVehicles,
   fetchCharger,
+  fetchContactSupportInfo,
   logout,
   setLanguage,
   getCurrentLanguageCode,

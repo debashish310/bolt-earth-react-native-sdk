@@ -56,4 +56,7 @@ RCT_EXTERN_METHOD(presentWalletFlow:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(logout:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(fetchContactSupportInfo:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
 @end

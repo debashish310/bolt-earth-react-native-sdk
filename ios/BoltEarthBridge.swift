@@ -340,6 +340,16 @@ final class BoltEarthBridge: NSObject {
         }
     }
 
+    // MARK: Contact Support
+
+    @objc(fetchContactSupportInfo:reject:)
+    func fetchContactSupportInfoBridge(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject: @escaping RCTPromiseRejectBlock
+    ) {
+        resolve(BoltEarthSDK.fetchContactSupportInfo())
+    }
+
     // MARK: Session
 
     /// Resolves with `true` when the native logout HTTP call succeeds (see `BoltEarthSDK.logout`). Local credentials are always cleared on the native side.
