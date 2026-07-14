@@ -263,13 +263,16 @@ export async function presentWalletFlow() {
 }
 
 /**
- * Returns Bolt Earth customer support contact details.
+ * Returns Bolt Earth customer support contact details (iOS and Android).
  *
  * @returns {Promise<{ whatsapp: string, call: string, email: string }>}
  */
 export async function fetchContactSupportInfo() {
   if (iosReady) {
     return BoltEarthBridge.fetchContactSupportInfo();
+  }
+  if (androidReady) {
+    return BoltEarthUiSdk.fetchContactSupportInfo();
   }
   return warnNativeUnavailable();
 }

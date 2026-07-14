@@ -197,6 +197,20 @@ class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Returns static Bolt Earth support contact info (whatsapp, call, email).
+   * Mirrors iOS `BoltEarthBridge.fetchContactSupportInfo`. No network call or prior
+   * `initialize` required.
+   */
+  @ReactMethod
+  fun fetchContactSupportInfo(promise: Promise) {
+    try {
+      promise.resolve(jsonObjectToWritableMap(BoltEarthUiSdk.fetchContactSupportInfo()))
+    } catch (e: Exception) {
+      promise.reject("E_FETCH_CONTACT_SUPPORT", e.message, e)
+    }
+  }
+
   private fun newTaskApplicationContext(appContext: Context): Context {
     return object : ContextWrapper(appContext) {
       override fun startActivity(intent: Intent) {
