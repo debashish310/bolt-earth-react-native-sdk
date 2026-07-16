@@ -8,6 +8,7 @@ import com.boltearthsdk.BoltEarthUiSdk
 import com.boltearthsdk.BoltLogoutResult
 import com.boltearthsdk.SdkEnvironment
 import com.boltearthsdk.SdkFontOverrides
+import com.boltearthsdk.VehicleType
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -128,13 +129,25 @@ class BoltEarthUiSdkModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun openChargerBookingFlow(promise: Promise) {
+  fun openChargerBookingFlow(
+    vehicleId: String,
+    vehicleType: String,
+    initialSOCPercent: Int,
+    promise: Promise,
+  ) {
     try {
       val launchContext =
         reactApplicationContext.currentActivity
           ?: newTaskApplicationContext(reactApplicationContext)
-      BoltEarthUiSdk.openChargerBookingFlow(launchContext)
+      BoltEarthUiSdk.openChargerBookingFlow(
+        launchContext,
+        vehicleId,
+        VehicleType.valueOf(vehicleType),
+        initialSOCPercent,
+      )
       promise.resolve(null)
+    } catch (e: IllegalArgumentException) {
+      promise.reject("BOLT_INVALID_VEHICLE_TYPE", e.message, e)
     } catch (e: Exception) {
       promise.reject("E_OPEN_CHARGER_BOOKING", e.message, e)
     }

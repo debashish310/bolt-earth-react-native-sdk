@@ -177,7 +177,12 @@ export async function presentChargerFlow(options) {
     return BoltEarthBridge.presentChargerFlow(o);
   }
   if (androidReady) {
-    return BoltEarthUiSdk.openChargerBookingFlow();
+    const o = options ?? {};
+    return BoltEarthUiSdk.openChargerBookingFlow(
+      o.vehicleMapperKey,
+      o.vehicleType,
+      o.initialSOCPercent,
+    );
   }
   return warnNativeUnavailable();
 }
