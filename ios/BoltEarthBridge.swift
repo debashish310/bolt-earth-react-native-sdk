@@ -21,13 +21,17 @@ private enum BoltBridgeConfigKey {
     static let sdkSemiBoldFontName = "sdkSemiBoldFontName"
     static let sdkThemeColorHex = "sdkThemeColorHex"
     static let verboseLoggingEnabled = "verboseLoggingEnabled"
+    static let sdkHeaderLogoBase64 = "sdkHeaderLogoBase64"
+    static let sdkHeaderHomeIconBase64 = "sdkHeaderHomeIconBase64"
 }
 
-/// Keys for dictionary passed from JS (`BoltEarthSDK.presentChargerFlow(options)`).
+/// Keys for dictionary passed from JS flow methods.
 private enum BoltBridgeFlowKey {
+    static let chargerId = "chargerId"
     static let vehicleMapperKey = "vehicleMapperKey"
     static let vehicleType = "vehicleType"
     static let initialSOCPercent = "initialSOCPercent"
+    static let shouldShowHeader = "shouldShowHeader"
 }
 
 private func boltBridgeBool(forKey key: String, in dict: NSDictionary) -> Bool? {
@@ -69,7 +73,11 @@ private func boltBridgeVehicleType(_ raw: String?) -> BoltEarthSDK.SDKVehicleTyp
 }
 
 @objc(BoltEarthBridge)
-final class BoltEarthBridge: NSObject {
+final class BoltEarthBridge: RCTEventEmitter {
+
+    override func supportedEvents() -> [String]! {
+        return ["BoltEarthUiSdkHeaderHomeTapped"]
+    }
 
     // MARK: Initialize (recommended)
 
@@ -104,6 +112,8 @@ final class BoltEarthBridge: NSObject {
             let semi = boltBridgeString(forKey: BoltBridgeConfigKey.sdkSemiBoldFontName, in: options)
             let hex = boltBridgeString(forKey: BoltBridgeConfigKey.sdkThemeColorHex, in: options)
             let verboseLogging = boltBridgeBool(forKey: BoltBridgeConfigKey.verboseLoggingEnabled, in: options) ?? false
+            let logoBase64 = boltBridgeString(forKey: BoltBridgeConfigKey.sdkHeaderLogoBase64, in: options)
+            let homeIconBase64 = boltBridgeString(forKey: BoltBridgeConfigKey.sdkHeaderHomeIconBase64, in: options)
 
             let config = BoltEarthSDK.Configuration(
                 clientID: clientID,
@@ -114,7 +124,9 @@ final class BoltEarthBridge: NSObject {
                 sdkBoldFontName: bold,
                 sdkSemiBoldFontName: semi,
                 sdkThemeColorHex: hex,
-                verboseLoggingEnabled: verboseLogging
+                verboseLoggingEnabled: verboseLogging,
+                sdkHeaderLogoBase64: logoBase64,
+                sdkHeaderHomeIconBase64: homeIconBase64
             )
 
             do {
@@ -213,9 +225,11 @@ final class BoltEarthBridge: NSObject {
     // MARK: Flows
 
     /// Options keys:
+    ///   - `chargerId` (String, optional) — if provided, skips QR scan and connects directly.
     ///   - `vehicleMapperKey` (String, required) — `externalKey` of the selected OEM vehicle.
-    ///   - `vehicleType` (String, required) — `"TWO_WHEELER"`, `"THREE_WHEELER"`, or `"FOUR_WHEELER"`.
+    ///   - `vehicleType` (String, optional, default `"THREE_WHEELER"`) — `"TWO_WHEELER"`, `"THREE_WHEELER"`, or `"FOUR_WHEELER"`.
     ///   - `initialSOCPercent` (Number, optional, default 0) — current battery SOC, 0–100.
+    ///   - `shouldShowHeader` (Boolean, optional, default false) — show the SDK-managed header bar.
     @objc(presentChargerFlow:resolve:reject:)
     func presentChargerFlowBridge(
         _ options: NSDictionary,
@@ -229,16 +243,24 @@ final class BoltEarthBridge: NSObject {
             }
 
             let vehicleTypeRaw = boltBridgeString(forKey: BoltBridgeFlowKey.vehicleType, in: options)
-            guard let vehicleType = boltBridgeVehicleType(vehicleTypeRaw) else {
-                reject(
-                    "BOLT_INVALID_VEHICLE_TYPE",
-                    "`vehicleType` must be one of \"TWO_WHEELER\", \"THREE_WHEELER\", or \"FOUR_WHEELER\". Got: \(vehicleTypeRaw ?? "nil").",
-                    nil
-                )
-                return
+            let vehicleType: BoltEarthSDK.SDKVehicleType
+            if let rawStr = vehicleTypeRaw {
+                guard let vt = boltBridgeVehicleType(rawStr) else {
+                    reject(
+                        "BOLT_INVALID_VEHICLE_TYPE",
+                        "`vehicleType` must be one of \"TWO_WHEELER\", \"THREE_WHEELER\", or \"FOUR_WHEELER\". Got: \(rawStr).",
+                        nil
+                    )
+                    return
+                }
+                vehicleType = vt
+            } else {
+                vehicleType = .threeWheeler
             }
 
             let soc = boltBridgeFloat(forKey: BoltBridgeFlowKey.initialSOCPercent, in: options) ?? 0
+            let chargerId = boltBridgeString(forKey: BoltBridgeFlowKey.chargerId, in: options)
+            let showHeader = boltBridgeBool(forKey: BoltBridgeFlowKey.shouldShowHeader, in: options) ?? false
 
             guard let top = Self.resolveTopMostViewController() else {
                 reject("BOLT_NO_VC", "Could not resolve a presenting view controller.", nil)
@@ -248,9 +270,14 @@ final class BoltEarthBridge: NSObject {
             do {
                 try BoltEarthSDK.presentChargerFlow(
                     from: top,
+                    chargerId: chargerId,
                     vehicleMapperKey: mapperKey,
                     vehicleType: vehicleType,
-                    initialSOCPercent: soc
+                    initialSOCPercent: soc,
+                    shouldShowHeader: showHeader,
+                    onHeaderHomeTapped: showHeader ? { [weak self] in
+                        self?.sendEvent(withName: "BoltEarthUiSdkHeaderHomeTapped", body: nil)
+                    } : nil
                 )
                 resolve(NSNull())
             } catch let e as BoltEarthSDK.PresentFlowError {
@@ -261,6 +288,8 @@ final class BoltEarthBridge: NSObject {
         }
     }
 
+    /// Options keys:
+    ///   - `shouldShowHeader` (Boolean, optional, default false) — show the SDK-managed header bar.
     @objc(
         presentBookingHistoryFlow:resolve:reject:
     )
@@ -275,9 +304,15 @@ final class BoltEarthBridge: NSObject {
                 return
             }
 
-            let _ = options // NSDictionary retained for RN API compatibility (booking deep-link removed)
-
-            BoltEarthSDK.presentBookingHistoryFlow(from: top, animated: true)
+            let showHeader = options.flatMap { boltBridgeBool(forKey: BoltBridgeFlowKey.shouldShowHeader, in: $0) } ?? false
+            BoltEarthSDK.presentBookingHistoryFlow(
+                from: top,
+                shouldShowHeader: showHeader,
+                onHeaderHomeTapped: showHeader ? { [weak self] in
+                    self?.sendEvent(withName: "BoltEarthUiSdkHeaderHomeTapped", body: nil)
+                } : nil,
+                animated: true
+            )
             resolve(NSNull())
         }
     }
@@ -321,9 +356,12 @@ final class BoltEarthBridge: NSObject {
 
     // MARK: Wallet
 
-    @objc(presentWalletFlow:reject:)
+    /// Options keys:
+    ///   - `shouldShowHeader` (Boolean, optional, default false) — show the SDK-managed header bar.
+    @objc(presentWalletFlow:resolve:reject:)
     func presentWalletFlowBridge(
-        _ resolve: @escaping RCTPromiseResolveBlock,
+        _ options: NSDictionary?,
+        resolve resolve: @escaping RCTPromiseResolveBlock,
         reject reject: @escaping RCTPromiseRejectBlock
     ) {
         DispatchQueue.main.async {
@@ -331,8 +369,15 @@ final class BoltEarthBridge: NSObject {
                 reject("BOLT_NO_VC", "Could not resolve a presenting view controller.", nil)
                 return
             }
+            let showHeader = options.flatMap { boltBridgeBool(forKey: BoltBridgeFlowKey.shouldShowHeader, in: $0) } ?? false
             do {
-                try BoltEarthSDK.presentWalletFlow(from: top)
+                try BoltEarthSDK.presentWalletFlow(
+                    from: top,
+                    shouldShowHeader: showHeader,
+                    onHeaderHomeTapped: showHeader ? { [weak self] in
+                        self?.sendEvent(withName: "BoltEarthUiSdkHeaderHomeTapped", body: nil)
+                    } : nil
+                )
                 resolve(NSNull())
             } catch {
                 reject("BOLT_WALLET", error.localizedDescription, nil)
@@ -394,7 +439,7 @@ final class BoltEarthBridge: NSObject {
         return vc
     }
 
-    @objc static func requiresMainQueueSetup() -> Bool {
+    override static func requiresMainQueueSetup() -> Bool {
         false
     }
 }

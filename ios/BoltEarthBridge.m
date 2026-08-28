@@ -8,7 +8,7 @@
 
 @interface RCT_EXTERN_MODULE(BoltEarthBridge, NSObject)
 
-// Promise API (preferred) — options: clientID, sdkToken, environment?, language?, sdk* font names?, sdkThemeColorHex?
+// Promise API (preferred) — options: clientID, sdkToken, environment?, language?, sdk* font names?, sdkThemeColorHex?, sdkHeaderLogoBase64?, sdkHeaderHomeIconBase64?
 RCT_EXTERN_METHOD(initializeWithOptions:(NSDictionary *)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
@@ -34,7 +34,7 @@ RCT_EXTERN_METHOD(setVerboseLoggingEnabled:(BOOL)enabled)
 RCT_EXTERN_METHOD(verboseLoggingEnabled:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
-// options: vehicleMapperKey (String), vehicleType (String), initialSOCPercent (Number, optional)
+// options: vehicleMapperKey (String, required), vehicleType (String, optional — default THREE_WHEELER), initialSOCPercent (Number, optional), shouldShowHeader (Boolean, optional)
 RCT_EXTERN_METHOD(presentChargerFlow:(NSDictionary *)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
@@ -50,7 +50,8 @@ RCT_EXTERN_METHOD(fetchCharger:(NSString *)chargerId
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(presentWalletFlow:(RCTPromiseResolveBlock)resolve
+RCT_EXTERN_METHOD(presentWalletFlow:(nullable NSDictionary *)options
+                  resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(logout:(RCTPromiseResolveBlock)resolve
