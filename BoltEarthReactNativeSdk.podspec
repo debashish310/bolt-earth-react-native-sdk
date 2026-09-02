@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
   s.name         = "BoltEarthReactNativeSdk"
-  s.version      = "1.1.1"
+  s.version      = "1.1.2"
   s.summary      = "BoltEarth React Native SDK"
 
   s.description  = <<-DESC
@@ -29,7 +29,7 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
 
-  s.dependency "BoltEarthUiSdkCore", "1.1.1"
+  s.dependency "BoltEarthUiSdkCore", "1.1.2"
 
   s.swift_version = "5.0"
 
